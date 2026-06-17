@@ -228,7 +228,7 @@ function buildKeyDataBar() {
 async function fetchYahooPrice(symbol) {
   try {
     // 使用 Yahoo Finance v8 API (免费，无需Key)
-    const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`);
+    const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+symbol+'?interval=1d&range=5d')}`);
     const data = await resp.json();
     const result = data.chart.result[0];
     const meta = result.meta;
@@ -256,7 +256,7 @@ async function fetchYahooPriceCN(symbol) {
   const suffixes = ['.SZ', '.SS'];
   for (const suffix of suffixes) {
     try {
-      const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?interval=1d&range=5d`);
+      const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+symbol+suffix+'?interval=1d&range=5d')}`);
       const data = await resp.json();
       if (!data.chart.result) continue;
       const meta = data.chart.result[0].meta;
@@ -279,7 +279,7 @@ async function fetchYahooPriceHK(symbol) {
   // 港股加 .HK 后缀，补齐4位
   const paddedSymbol = symbol.padStart(4, '0');
   try {
-    const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${paddedSymbol}.HK?interval=1d&range=5d`);
+    const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+paddedSymbol+'.HK?interval=1d&range=5d')}`);
     const data = await resp.json();
     if (!data.chart.result) return null;
     const meta = data.chart.result[0].meta;
@@ -355,7 +355,7 @@ async function fetchMacroData() {
 
   macros.forEach(async m => {
     try {
-      const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${m.symbol}?interval=1d&range=2d`);
+      const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+m.symbol+'?interval=1d&range=2d')}`);
       const data = await resp.json();
       if (!data.chart.result) return;
       const price = data.chart.result[0].meta.regularMarketPrice;
