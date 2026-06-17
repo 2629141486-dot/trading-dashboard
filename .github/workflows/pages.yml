@@ -1,8 +1,10 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -13,8 +15,69 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: peaceiris/actions-gh-pages@v3
+
+      - name: Fetch stock prices
+        run: |
+          python3 -c "
+          import json, urllib.request, os
+          from datetime import datetime, timezone, timedelta
+
+          stocks = {
+              'us': ['NVDA','GEV','MP','ETN','AVAV','BE','EOSE','LITE'],
+              'cn': [('300308','SZ'), ('002028','SZ'), ('002371','SZ'), ('300750','SZ')],
+              'hk': [('0981','HK'), ('3899','HK')],
+              'macro': ['^VIX','^TNX','DX-Y.NYB','BTC-USD','CL=F','000001.SS','^HSI']
+          }
+
+          result = {'timestamp': '', 'stocks': {}}
+
+          def fetch(sym, key=None):
+              try:
+                  url = f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d'
+                  req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                  data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+                  m = data['chart']['result'][0]['meta']
+                  k = key or sym
+                  result['stocks'][k] = {
+                      'price': m['regularMarketPrice'],
+                      'prev': m.get('previousClose', m.get('chartPreviousClose', 0)),
+                      'change': round(m['regularMarketPrice'] - m.get('previousClose', m.get('chartPreviousClose', 0)), 2),
+                      'pct': round((m['regularMarketPrice'] - m.get('previousClose', m.get('chartPreviousClose', 0))) / max(m.get('previousClose', m.get('chartPreviousClose', 1)), 0.01) * 100, 2),
+                      'currency': 'USD'
+                  }
+              except Exception as e:
+                  result['stocks'][key or sym] = {'error': str(e)[:60]}
+
+          for sym in stocks['us']:
+              fetch(sym)
+
+          for sym, ex in stocks['cn']:
+              fetch(f'{sym}.{ex}', sym)
+              if sym in result['stocks']:
+                  result['stocks'][sym]['currency'] = 'CNY'
+
+          for sym, ex in stocks['hk']:
+              fetch(f'{sym.zfill(4)}.{ex}', sym)
+              if sym in result['stocks']:
+                  result['stocks'][sym]['currency'] = 'HKD'
+
+          for sym in stocks['macro']:
+              fetch(sym)
+
+          tz = timezone(timedelta(hours=8))
+          result['timestamp'] = datetime.now(tz).strftime('%H:%M:%S')
+
+          with open('prices.json', 'w') as f:
+              json.dump(result, f)
+          print(f'Prices updated: {result[\"timestamp\"]}')
+          "
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: .
           keep_files: false
+          user_name: 'Andy Money Bot'
+          user_email: 'bot@andymoney.bot'
+          commit_message: '部署更新 ${{ github.sha }}'

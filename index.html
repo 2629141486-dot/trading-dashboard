@@ -30,7 +30,7 @@
       </div>
     </div>
     <div class="flex items-center gap-4 text-xs">
-      <span class="flex items-center gap-1 text-gray-400"><span class="w-2 h-2 bg-green-500 rounded-full"></span> 数据源: Yahoo Finance + TradingView</span>
+      <span class="flex items-center gap-1 text-gray-400"><span class="w-2 h-2 bg-green-500 rounded-full blink-green"></span> 数据源: Yahoo Finance（每5分钟更新）</span>
       <span class="text-gray-500">|</span>
       <span id="updateTime" class="text-gray-500 mono">更新中...</span>
       <button onclick="refreshPrices()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs transition">刷新</button>
@@ -224,76 +224,32 @@ function buildKeyDataBar() {
   });
 }
 
-// ==================== Yahoo Finance 价格抓取 ====================
-async function fetchYahooPrice(symbol) {
-  try {
-    // 使用 Yahoo Finance v8 API (免费，无需Key)
-    const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+symbol+'?interval=1d&range=5d')}`);
-    const data = await resp.json();
-    const result = data.chart.result[0];
-    const meta = result.meta;
-    const quotes = result.indicators.quote[0];
-    const lastIdx = quotes.close.length - 1;
+// ==================== 价格数据：从 prices.json 读取（GitHub Action 每5分钟更新） ====================
+let cachedPrices = null;
 
-    return {
-      price: meta.regularMarketPrice,
-      prevClose: meta.previousClose || meta.chartPreviousClose,
-      change: meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose),
-      changePct: ((meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose)) / (meta.previousClose || meta.chartPreviousClose) * 100),
-      high: meta.regularMarketDayHigh || meta.fiftyTwoWeekHigh,
-      low: meta.regularMarketDayLow || meta.fiftyTwoWeekLow,
-      volume: meta.regularMarketVolume,
-      currency: meta.currency,
-      name: meta.symbol,
-    };
+async function loadPrices() {
+  try {
+    const resp = await fetch('prices.json?t=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    cachedPrices = await resp.json();
+    return cachedPrices;
   } catch(e) {
+    console.error('加载价格失败:', e);
     return null;
   }
 }
 
-async function fetchYahooPriceCN(symbol) {
-  // A股用后缀
-  const suffixes = ['.SZ', '.SS'];
-  for (const suffix of suffixes) {
-    try {
-      const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+symbol+suffix+'?interval=1d&range=5d')}`);
-      const data = await resp.json();
-      if (!data.chart.result) continue;
-      const meta = data.chart.result[0].meta;
-      return {
-        price: meta.regularMarketPrice,
-        prevClose: meta.previousClose || meta.chartPreviousClose,
-        change: meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose),
-        changePct: ((meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose)) / (meta.previousClose || meta.chartPreviousClose) * 100),
-        high: meta.regularMarketDayHigh,
-        low: meta.regularMarketDayLow,
-        volume: meta.regularMarketVolume,
-        currency: 'CNY',
-      };
-    } catch(e) { continue; }
-  }
-  return null;
-}
-
-async function fetchYahooPriceHK(symbol) {
-  // 港股加 .HK 后缀，补齐4位
-  const paddedSymbol = symbol.padStart(4, '0');
-  try {
-    const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+paddedSymbol+'.HK?interval=1d&range=5d')}`);
-    const data = await resp.json();
-    if (!data.chart.result) return null;
-    const meta = data.chart.result[0].meta;
-    return {
-      price: meta.regularMarketPrice,
-      prevClose: meta.previousClose || meta.chartPreviousClose,
-      change: meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose),
-      changePct: ((meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose)) / (meta.previousClose || meta.chartPreviousClose) * 100),
-      high: meta.regularMarketDayHigh,
-      low: meta.regularMarketDayLow,
-      volume: meta.regularMarketVolume,
-      currency: 'HKD',
-    };
-  } catch(e) { return null; }
+function getStockData(symbol) {
+  if (!cachedPrices || !cachedPrices.stocks) return null;
+  const s = cachedPrices.stocks[symbol];
+  if (!s || s.error) return null;
+  return {
+    price: s.price,
+    prevClose: s.prev,
+    change: s.change,
+    changePct: s.pct,
+    currency: s.currency || 'USD',
+  };
 }
 
 // ==================== 更新UI ====================
@@ -323,49 +279,38 @@ function updatePriceUI(market, symbol, data) {
 async function refreshPrices() {
   document.getElementById('updateTime').textContent = '更新中...';
 
-  // 并发抓所有美股
-  const usPromises = WATCHLIST.us.map(s => fetchYahooPrice(s.symbol).then(d => ({ market: 'us', symbol: s.symbol, data: d })));
-  // A股
-  const cnPromises = WATCHLIST.cn.map(s => fetchYahooPriceCN(s.symbol).then(d => ({ market: 'cn', symbol: s.symbol, data: d })));
-  // 港股
-  const hkPromises = WATCHLIST.hk.map(s => fetchYahooPriceHK(s.symbol).then(d => ({ market: 'hk', symbol: s.symbol, data: d })));
+  const prices = await loadPrices();
+  if (!prices) {
+    document.getElementById('updateTime').textContent = '加载失败';
+    return;
+  }
 
-  const allResults = await Promise.all([...usPromises, ...cnPromises, ...hkPromises]);
-
-  allResults.forEach(r => updatePriceUI(r.market, r.symbol, r.data));
+  // 更新所有自选股
+  for (const s of WATCHLIST.us) {
+    const data = getStockData(s.symbol);
+    updatePriceUI('us', s.symbol, data);
+  }
+  for (const s of WATCHLIST.cn) {
+    const data = getStockData(s.symbol);
+    updatePriceUI('cn', s.symbol, data);
+  }
+  for (const s of WATCHLIST.hk) {
+    const data = getStockData(s.symbol);
+    updatePriceUI('hk', s.symbol, data);
+  }
 
   // 更新宏观数据
-  fetchMacroData();
+  const macroMap = { '^VIX':'vix', '^TNX':'us10y', 'DX-Y.NYB':'dxy', 'BTC-USD':'btc', 'CL=F':'wti', '000001.SS':'shIndex', '^HSI':'hsi' };
+  for (const [sym, id] of Object.entries(macroMap)) {
+    const s = prices.stocks[sym];
+    const el = document.getElementById(id);
+    if (el && s && !s.error) {
+      if (id === 'us10y') el.textContent = s.price.toFixed(2) + '%';
+      else el.textContent = s.price.toFixed(2);
+    }
+  }
 
-  const now = new Date();
-  document.getElementById('updateTime').textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
-}
-
-// ==================== 宏观数据 ====================
-async function fetchMacroData() {
-  const macros = [
-    { symbol: '^VIX', id: 'vix', label: 'VIX' },
-    { symbol: '^TNX', id: 'us10y', label: 'US 10Y' },
-    { symbol: 'DX-Y.NYB', id: 'dxy', label: 'DXY' },
-    { symbol: 'BTC-USD', id: 'btc', label: 'BTC' },
-    { symbol: 'CL=F', id: 'wti', label: 'WTI' },
-    { symbol: '000001.SS', id: 'shIndex', label: '上证' },
-    { symbol: '^HSI', id: 'hsi', label: '恒指' },
-  ];
-
-  macros.forEach(async m => {
-    try {
-      const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+m.symbol+'?interval=1d&range=2d')}`);
-      const data = await resp.json();
-      if (!data.chart.result) return;
-      const price = data.chart.result[0].meta.regularMarketPrice;
-      const el = document.getElementById(m.id);
-      if (el) {
-        if (m.id === 'us10y') el.textContent = price.toFixed(2) + '%';
-        else el.textContent = price.toFixed(2);
-      }
-    } catch(e) {}
-  });
+  document.getElementById('updateTime').textContent = prices.timestamp || '已更新';
 }
 
 // ==================== 图表切换 (TradingView Widget) ====================
