@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小副热带 · 交易看板</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  * { font-family: 'Noto Sans SC', system-ui, sans-serif; }
+  .mono { font-family: 'JetBrains Mono', 'Consolas', monospace; }
+  .blink-green { animation: blinkGreen 1s infinite; }
+  @keyframes blinkGreen { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #111; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+</style>
+</head>
+<body class="bg-black text-gray-100 min-h-screen">
+
+<!-- Header -->
+<header class="bg-gray-950 border-b border-gray-800 sticky top-0 z-50">
+  <div class="max-w-full mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="fa fa-line-chart text-2xl text-emerald-400"></i>
+      <div>
+        <h1 class="text-lg font-bold">小副热带 · 交易看板</h1>
+        <p class="text-xs text-gray-500">AI算力 × 新能源 × 电力 · 8只核心标的</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 text-xs">
+      <span class="flex items-center gap-1 text-gray-400"><span class="w-2 h-2 bg-green-500 rounded-full"></span> 数据源: Yahoo Finance + TradingView</span>
+      <span class="text-gray-500">|</span>
+      <span id="updateTime" class="text-gray-500 mono">更新中...</span>
+      <button onclick="refreshPrices()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs transition">刷新</button>
+    </div>
+  </div>
+</header>
+
+<div class="flex h-[calc(100vh-57px)]">
+  <!-- 左侧：自选列表 + 关键价位 -->
+  <div class="w-80 bg-gray-950 border-r border-gray-800 overflow-y-auto flex-shrink-0">
+    <!-- 资金概览 -->
+    <div class="p-3 border-b border-gray-800">
+      <div class="text-xs text-gray-400 mb-2">💰 账户概览</div>
+      <div class="grid grid-cols-2 gap-2">
+        <div class="bg-gray-900 rounded p-2">
+          <div class="text-xs text-gray-500">星财富 (富途)</div>
+          <div class="text-sm font-bold mono">美股 · 港股</div>
+        </div>
+        <div class="bg-gray-900 rounded p-2">
+          <div class="text-xs text-gray-500">汇丰</div>
+          <div class="text-sm font-bold mono">美股 · 港股</div>
+        </div>
+        <div class="bg-gray-900 rounded p-2 col-span-2">
+          <div class="text-xs text-gray-500">支付宝 · 国泰君安</div>
+          <div class="text-sm font-bold mono">A股</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 美股自选 -->
+    <div class="p-3 border-b border-gray-800">
+      <div class="text-xs text-gray-400 mb-2 flex items-center justify-between">
+        <span>🇺🇸 美股自选</span>
+        <span class="text-gray-600">星财富 / 汇丰</span>
+      </div>
+      <div id="usWatchlist" class="space-y-1">
+        <!-- JS填充 -->
+      </div>
+    </div>
+
+    <!-- A股自选 -->
+    <div class="p-3 border-b border-gray-800">
+      <div class="text-xs text-gray-400 mb-2 flex items-center justify-between">
+        <span>🇨🇳 A股自选</span>
+        <span class="text-gray-600">支付宝 · 国泰</span>
+      </div>
+      <div id="cnWatchlist" class="space-y-1">
+        <!-- JS填充 -->
+      </div>
+    </div>
+
+    <!-- 港股自选 -->
+    <div class="p-3">
+      <div class="text-xs text-gray-400 mb-2 flex items-center justify-between">
+        <span>🇭🇰 港股自选</span>
+        <span class="text-gray-600">星财富 / 汇丰</span>
+      </div>
+      <div id="hkWatchlist" class="space-y-1">
+        <!-- JS填充 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧：图表 + 数据区 -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <!-- 顶栏：热力条 -->
+    <div id="heatBar" class="flex-shrink-0 px-4 py-2 bg-gray-950 border-b border-gray-800 flex items-center gap-2 overflow-x-auto text-xs">
+      <!-- JS填充 -->
+    </div>
+
+    <!-- 主图表区 -->
+    <div class="flex-1 grid grid-cols-2 gap-0 overflow-hidden">
+      <!-- 图表1 -->
+      <div class="border-r border-b border-gray-800 relative">
+        <div class="absolute top-2 left-2 z-10 text-xs text-gray-400 bg-black/60 px-2 py-1 rounded" id="chart1Label">NVDA</div>
+        <div id="tv1" class="w-full h-full"></div>
+      </div>
+      <!-- 图表2 -->
+      <div class="border-b border-gray-800 relative">
+        <div class="absolute top-2 left-2 z-10 text-xs text-gray-400 bg-black/60 px-2 py-1 rounded" id="chart2Label">GEV</div>
+        <div id="tv2" class="w-full h-full"></div>
+      </div>
+      <!-- 图表3 -->
+      <div class="border-r border-gray-800 relative">
+        <div class="absolute top-2 left-2 z-10 text-xs text-gray-400 bg-black/60 px-2 py-1 rounded" id="chart3Label">300308</div>
+        <div id="tv3" class="w-full h-full"></div>
+      </div>
+      <!-- 图表4 -->
+      <div class="relative">
+        <div class="absolute top-2 left-2 z-10 text-xs text-gray-400 bg-black/60 px-2 py-1 rounded" id="chart4Label">MP</div>
+        <div id="tv4" class="w-full h-full"></div>
+      </div>
+    </div>
+
+    <!-- 底部：关键数据栏 -->
+    <div id="keyDataBar" class="flex-shrink-0 bg-gray-950 border-t border-gray-800 px-4 py-2 flex items-center gap-4 overflow-x-auto text-xs">
+      <!-- JS填充 -->
+    </div>
+  </div>
+</div>
+
+<!-- 脚本 -->
+<script>
+// ==================== 数据结构 ====================
+const WATCHLIST = {
+  us: [
+    { symbol: 'NVDA', name: 'NVIDIA', priority: 1, entryLow: null, entryHigh: null, stop: '-15%', thesis: 'Vera Rubin Q3发货·推理成本降至1/10', risk: 'Blackwell过渡·CPO争议·出口管制', weight: '核心' },
+    { symbol: 'GEV', name: 'GE Vernova', priority: 2, entryLow: null, entryHigh: null, stop: '-12%', thesis: '电力超级周期·积压$1630亿·Q1数据中心$24亿', risk: 'YTD+55%·估值不低', weight: '核心' },
+    { symbol: 'MP', name: 'MP Materials', priority: 3, entryLow: null, entryHigh: null, stop: '-20%', thesis: 'EBITDA盈利拐点·国防部$110/kg底价·重稀土Q2投产', risk: '稀土价格波动·中国竞争', weight: '高赔率' },
+    { symbol: 'ETN', name: 'Eaton Corp', priority: 6, entryLow: null, entryHigh: null, stop: '-10%', thesis: '数据中心订单+200%·积压$196亿·$95亿收购液冷', risk: '高估值·收购整合', weight: '确定性' },
+    { symbol: 'AVAV', name: 'AeroVironment', priority: 7, entryLow: null, entryHigh: null, stop: '-15%', thesis: 'Switchblade巡飞弹·智能消耗战·$134亿自主系统', risk: '国防预算政治风险', weight: '政策驱动' },
+    { symbol: 'BE', name: 'Bloom Energy', priority: 8, entryLow: null, entryHigh: null, stop: '-20%', thesis: 'SOFC燃料电池·Q1首盈利·FY2026E$34-38亿', risk: '盈利持续性待验证·估值争议大', weight: '风险/回报' },
+    { symbol: 'EOSE', name: 'Eos Energy', priority: 9, entryLow: null, entryHigh: null, stop: '-25%', thesis: '锌基长时储能·AI数据中心需求·分析师目标$9.63', risk: '执行风险·订单转化率', weight: '高风险' },
+    { symbol: 'LITE', name: 'Lumentum', priority: 10, entryLow: null, entryHigh: null, stop: '-15%', thesis: '光器件龙头·获Nvidia$20亿·产能售罄至2027', risk: 'CPO时间线争议', weight: '弹性' },
+  ],
+  cn: [
+    { symbol: '300308', name: '中际旭创', priority: 4, entryLow: null, entryHigh: null, stop: '-15%', thesis: '1.6T光模块份额50-70%·订单排至2028', risk: 'CPO远期替代·中美贸易', weight: '核心' },
+    { symbol: '002028', name: '思源电气', priority: 5, entryLow: null, entryHigh: null, stop: '-15%', thesis: '净利润+53.7%·2026E+40%·PE25-30x偏低', risk: '市场竞争·汇率波动', weight: '低估值成长' },
+    { symbol: '002371', name: '北方华创', priority: 11, entryLow: null, entryHigh: null, stop: '-15%', thesis: '国产半导体设备龙头·大基金三期3440亿', risk: '地缘政治·估值偏高', weight: '弹性' },
+    { symbol: '300750', name: '宁德时代', priority: 12, entryLow: null, entryHigh: null, stop: '-12%', thesis: '2026E收入~6000亿·储能出货250-300GWh', risk: '贸易摩擦·竞争加剧', weight: '防御' },
+  ],
+  hk: [
+    { symbol: '0981', name: '中芯国际', priority: 13, entryLow: null, entryHigh: null, stop: '-15%', thesis: '中国AI数据中心80%国产化目标·花旗看多', risk: '地缘政治·技术差距', weight: '弹性' },
+    { symbol: '3899', name: '中集安瑞科', priority: 14, entryLow: null, entryHigh: null, stop: '-15%', thesis: '氢能储运设备龙头·液氢/高压气氢双线', risk: '氢能政策不确定性', weight: '弹性' },
+  ]
+};
+
+// ==================== 构建自选列表 ====================
+function buildWatchlist(market, containerId) {
+  const container = document.getElementById(containerId);
+  const stocks = WATCHLIST[market];
+
+  stocks.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'bg-gray-900 rounded p-2 cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-gray-600';
+    div.onclick = () => switchChart(market, s.symbol);
+    div.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold mono">${s.symbol}</span>
+          <span class="text-xs text-gray-400 ml-1">${s.name}</span>
+        </div>
+        <span class="text-xs px-1.5 py-0.5 rounded ${s.weight === '核心' ? 'bg-blue-900/50 text-blue-300' : s.weight === '高赔率' ? 'bg-orange-900/50 text-orange-300' : s.weight === '确定性' ? 'bg-green-900/50 text-green-300' : 'bg-gray-800 text-gray-400'}">${s.weight}</span>
+      </div>
+      <div class="flex items-center justify-between mt-1">
+        <span class="text-xs mono text-gray-300" id="price-${market}-${s.symbol}">---</span>
+        <span class="text-xs mono" id="change-${market}-${s.symbol}">---</span>
+      </div>
+      <div class="text-xs text-gray-500 mt-0.5 truncate">${s.thesis}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ==================== 构建热力条 ====================
+function buildHeatBar() {
+  const bar = document.getElementById('heatBar');
+  const allStocks = [...WATCHLIST.us, ...WATCHLIST.cn, ...WATCHLIST.hk];
+  allStocks.sort((a,b) => a.priority - b.priority);
+
+  allStocks.forEach(s => {
+    const span = document.createElement('span');
+    span.className = 'flex items-center gap-1 px-2 py-1 bg-gray-900 rounded mono text-xs whitespace-nowrap';
+    span.id = `heat-${s.symbol}`;
+    span.innerHTML = `<span class="font-bold">${s.symbol}</span><span>---</span><span class="text-gray-600">---</span>`;
+    bar.appendChild(span);
+  });
+}
+
+// ==================== 构建底部数据栏 ====================
+function buildKeyDataBar() {
+  const bar = document.getElementById('keyDataBar');
+  const items = [
+    { label: 'VIX', id: 'vix' },
+    { label: 'US 10Y', id: 'us10y' },
+    { label: 'DXY', id: 'dxy' },
+    { label: 'BTC', id: 'btc' },
+    { label: 'WTI', id: 'wti' },
+    { label: '上证', id: 'shIndex' },
+    { label: '恒指', id: 'hsi' },
+  ];
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 bg-gray-900 rounded px-3 py-1';
+    div.innerHTML = `
+      <span class="text-gray-400">${item.label}</span>
+      <span class="font-bold mono" id="${item.id}">---</span>
+    `;
+    bar.appendChild(div);
+  });
+}
+
+// ==================== Yahoo Finance 价格抓取 ====================
+async function fetchYahooPrice(symbol) {
+  try {
+    // 使用 Yahoo Finance v8 API (免费，无需Key)
+    const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`);
+    const data = await resp.json();
+    const result = data.chart.result[0];
+    const meta = result.meta;
+    const quotes = result.indicators.quote[0];
+    const lastIdx = quotes.close.length - 1;
+
+    return {
+      price: meta.regularMarketPrice,
+      prevClose: meta.previousClose || meta.chartPreviousClose,
+      change: meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose),
+      changePct: ((meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose)) / (meta.previousClose || meta.chartPreviousClose) * 100),
+      high: meta.regularMarketDayHigh || meta.fiftyTwoWeekHigh,
+      low: meta.regularMarketDayLow || meta.fiftyTwoWeekLow,
+      volume: meta.regularMarketVolume,
+      currency: meta.currency,
+      name: meta.symbol,
+    };
+  } catch(e) {
+    return null;
+  }
+}
+
+async function fetchYahooPriceCN(symbol) {
+  // A股用后缀
+  const suffixes = ['.SZ', '.SS'];
+  for (const suffix of suffixes) {
+    try {
+      const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?interval=1d&range=5d`);
+      const data = await resp.json();
+      if (!data.chart.result) continue;
+      const meta = data.chart.result[0].meta;
+      return {
+        price: meta.regularMarketPrice,
+        prevClose: meta.previousClose || meta.chartPreviousClose,
+        change: meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose),
+        changePct: ((meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose)) / (meta.previousClose || meta.chartPreviousClose) * 100),
+        high: meta.regularMarketDayHigh,
+        low: meta.regularMarketDayLow,
+        volume: meta.regularMarketVolume,
+        currency: 'CNY',
+      };
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+async function fetchYahooPriceHK(symbol) {
+  // 港股加 .HK 后缀，补齐4位
+  const paddedSymbol = symbol.padStart(4, '0');
+  try {
+    const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${paddedSymbol}.HK?interval=1d&range=5d`);
+    const data = await resp.json();
+    if (!data.chart.result) return null;
+    const meta = data.chart.result[0].meta;
+    return {
+      price: meta.regularMarketPrice,
+      prevClose: meta.previousClose || meta.chartPreviousClose,
+      change: meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose),
+      changePct: ((meta.regularMarketPrice - (meta.previousClose || meta.chartPreviousClose)) / (meta.previousClose || meta.chartPreviousClose) * 100),
+      high: meta.regularMarketDayHigh,
+      low: meta.regularMarketDayLow,
+      volume: meta.regularMarketVolume,
+      currency: 'HKD',
+    };
+  } catch(e) { return null; }
+}
+
+// ==================== 更新UI ====================
+function updatePriceUI(market, symbol, data) {
+  if (!data) {
+    const priceEl = document.getElementById(`price-${market}-${symbol}`);
+    const changeEl = document.getElementById(`change-${market}-${symbol}`);
+    if (priceEl) priceEl.textContent = '获取失败';
+    if (changeEl) changeEl.textContent = '---';
+    return;
+  }
+
+  const priceEl = document.getElementById(`price-${market}-${symbol}`);
+  const changeEl = document.getElementById(`change-${market}-${symbol}`);
+  const heatEl = document.getElementById(`heat-${symbol}`);
+
+  const color = data.change >= 0 ? 'text-green-400' : 'text-red-400';
+  const sign = data.change >= 0 ? '+' : '';
+  const currencySymbol = data.currency === 'CNY' ? '¥' : data.currency === 'HKD' ? 'HK$' : '$';
+
+  if (priceEl) priceEl.innerHTML = `<span class="mono">${currencySymbol}${data.price.toFixed(2)}</span>`;
+  if (changeEl) changeEl.innerHTML = `<span class="${color} mono">${sign}${data.change.toFixed(2)} (${sign}${data.changePct.toFixed(2)}%)</span>`;
+  if (heatEl) heatEl.innerHTML = `<span class="font-bold">${symbol}</span><span class="mono">${currencySymbol}${data.price.toFixed(2)}</span><span class="${color} mono">${sign}${data.changePct.toFixed(2)}%</span>`;
+}
+
+// ==================== 刷新所有价格 ====================
+async function refreshPrices() {
+  document.getElementById('updateTime').textContent = '更新中...';
+
+  // 并发抓所有美股
+  const usPromises = WATCHLIST.us.map(s => fetchYahooPrice(s.symbol).then(d => ({ market: 'us', symbol: s.symbol, data: d })));
+  // A股
+  const cnPromises = WATCHLIST.cn.map(s => fetchYahooPriceCN(s.symbol).then(d => ({ market: 'cn', symbol: s.symbol, data: d })));
+  // 港股
+  const hkPromises = WATCHLIST.hk.map(s => fetchYahooPriceHK(s.symbol).then(d => ({ market: 'hk', symbol: s.symbol, data: d })));
+
+  const allResults = await Promise.all([...usPromises, ...cnPromises, ...hkPromises]);
+
+  allResults.forEach(r => updatePriceUI(r.market, r.symbol, r.data));
+
+  // 更新宏观数据
+  fetchMacroData();
+
+  const now = new Date();
+  document.getElementById('updateTime').textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+}
+
+// ==================== 宏观数据 ====================
+async function fetchMacroData() {
+  const macros = [
+    { symbol: '^VIX', id: 'vix', label: 'VIX' },
+    { symbol: '^TNX', id: 'us10y', label: 'US 10Y' },
+    { symbol: 'DX-Y.NYB', id: 'dxy', label: 'DXY' },
+    { symbol: 'BTC-USD', id: 'btc', label: 'BTC' },
+    { symbol: 'CL=F', id: 'wti', label: 'WTI' },
+    { symbol: '000001.SS', id: 'shIndex', label: '上证' },
+    { symbol: '^HSI', id: 'hsi', label: '恒指' },
+  ];
+
+  macros.forEach(async m => {
+    try {
+      const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${m.symbol}?interval=1d&range=2d`);
+      const data = await resp.json();
+      if (!data.chart.result) return;
+      const price = data.chart.result[0].meta.regularMarketPrice;
+      const el = document.getElementById(m.id);
+      if (el) {
+        if (m.id === 'us10y') el.textContent = price.toFixed(2) + '%';
+        else el.textContent = price.toFixed(2);
+      }
+    } catch(e) {}
+  });
+}
+
+// ==================== 图表切换 (TradingView Widget) ====================
+const chartLabels = ['chart1Label','chart2Label','chart3Label','chart4Label'];
+const chartDivs = ['tv1','tv2','tv3','tv4'];
+let currentChartIdx = 3;
+
+function switchChart(market, symbol) {
+  currentChartIdx = (currentChartIdx + 1) % 4;
+  const labelEl = document.getElementById(chartLabels[currentChartIdx]);
+  const divEl = document.getElementById(chartDivs[currentChartIdx]);
+
+  let tvSymbol;
+  if (market === 'us') tvSymbol = `NYSE:${symbol}`;
+  else if (market === 'cn') tvSymbol = `SZSE:${symbol}`;
+  else tvSymbol = `HKEX:${symbol.padStart(4,'0')}`;
+
+  labelEl.textContent = symbol;
+  divEl.innerHTML = '';
+
+  // TradingView 轻量 widget
+  const iframe = document.createElement('iframe');
+  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_${currentChartIdx}&symbol=${tvSymbol}&interval=60&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&studies=MA:25%7CMA:99&theme=dark&style=1&timezone=Asia/Shanghai&withdateranges=0&hideideas=0&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=zh_CN&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=${tvSymbol}`;
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  iframe.style.border = 'none';
+  iframe.allow = 'fullscreen';
+
+  const widgetDiv = document.createElement('div');
+  widgetDiv.className = 'tradingview-widget-container w-full h-full';
+  widgetDiv.appendChild(iframe);
+
+  divEl.appendChild(widgetDiv);
+}
+
+// ==================== 初始化 ====================
+function init() {
+  buildWatchlist('us', 'usWatchlist');
+  buildWatchlist('cn', 'cnWatchlist');
+  buildWatchlist('hk', 'hkWatchlist');
+  buildHeatBar();
+  buildKeyDataBar();
+
+  // 默认图表: NVDA, GEV, 300308, MP
+  const defaultCharts = [
+    { market: 'us', symbol: 'NVDA', idx: 0 },
+    { market: 'us', symbol: 'GEV', idx: 1 },
+    { market: 'cn', symbol: '300308', idx: 2 },
+    { market: 'us', symbol: 'MP', idx: 3 },
+  ];
+
+  defaultCharts.forEach(dc => {
+    const labelEl = document.getElementById(chartLabels[dc.idx]);
+    const divEl = document.getElementById(chartDivs[dc.idx]);
+    labelEl.textContent = dc.symbol;
+
+    let tvSymbol;
+    if (dc.market === 'us') tvSymbol = `NYSE:${dc.symbol}`;
+    else if (dc.market === 'cn') tvSymbol = `SZSE:${dc.symbol}`;
+    else tvSymbol = `HKEX:${dc.symbol}`;
+
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_${dc.idx}&symbol=${tvSymbol}&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&studies=MA:25%7CMA:99&theme=dark&style=1&timezone=Asia/Shanghai&withdateranges=0&hideideas=0&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=zh_CN&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=${tvSymbol}`;
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = 'none';
+    iframe.allow = 'fullscreen';
+
+    divEl.appendChild(iframe);
+  });
+
+  // 首次抓价格
+  refreshPrices();
+
+  // 每30秒自动刷新价格
+  setInterval(refreshPrices, 30000);
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
