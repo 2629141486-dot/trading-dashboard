@@ -139,9 +139,9 @@
     <div class="flex-1 relative" id="chartContainer">
       <div id="tvChart" class="w-full h-full"></div>
       <!-- 买卖盘占比条 -->
-      <div class="absolute bottom-0 left-0 right-0 h-8 flex text-xs">
-        <div id="buyBar" class="bg-green-700 flex items-center justify-end px-2 transition-all" style="width:55%">买 55%</div>
-        <div id="sellBar" class="bg-red-700 flex items-center px-2 transition-all" style="width:45%">卖 45%</div>
+      <div class="absolute bottom-0 left-0 right-0 h-9 flex text-sm font-bold">
+        <div id="buyBar" class="bg-green-700 flex items-center justify-end px-3 transition-all" style="width:55%">买 55%</div>
+        <div id="sellBar" class="bg-red-700 flex items-center px-3 transition-all" style="width:45%">卖 45%</div>
       </div>
     </div>
 
@@ -155,8 +155,8 @@
       <button class="indicator-btn px-2 py-1 rounded border border-gray-700 text-gray-400 hover:text-white" onclick="toggleIndicator('SAR',this)">SAR</button>
       <button class="indicator-btn px-2 py-1 rounded border border-gray-700 text-gray-400 hover:text-white" onclick="toggleIndicator('MAVOL',this)">MAVOL</button>
       <span class="text-gray-600 mx-1 text-xs">|</span>
-      <span class="text-xs text-gray-500">支撑 <span id="supportLevel" class="text-green-400 mono">--</span></span>
-      <span class="text-xs text-gray-500 ml-2">压力 <span id="resistanceLevel" class="text-red-400 mono">--</span></span>
+      <span class="text-xs font-bold">支撑 <span id="supportLevel" class="text-green-400 mono text-sm">--</span></span>
+      <span class="text-xs font-bold ml-3">压力 <span id="resistanceLevel" class="text-red-400 mono text-sm">--</span></span>
     </div>
   </div>
 </div>
@@ -171,8 +171,8 @@ let cachedPrices = {};
 let fundFlowPie = null;
 
 const TV_EXCHANGE = {
-  NVDA:'NASDAQ', GEV:'NYSE', MP:'NYSE', ETN:'NYSE',
-  AVAV:'NASDAQ', BE:'NYSE', EOSE:'NASDAQ', LITE:'NASDAQ', SPCX:'NASDAQ',
+  NVDA:'NASDAQ', GEV:'NYSE', MP:'NYSE', ETN:'NYSE', QQQ:'NASDAQ', SPY:'NYSE', DIA:'NYSE', SPCX:'NASDAQ',
+  AVAV:'NASDAQ', BE:'NYSE', EOSE:'NASDAQ', LITE:'NASDAQ',
 };
 
 // ═══════════ 自选股管理 ═══════════
@@ -276,19 +276,31 @@ const TOP_BENCHMARKS = ['QQQ','SPY','DIA','NVDA','SPCX'];
 
 function updateTopBar() {
   const bar = document.getElementById('topBar');
+  const now = new Date();
+  const etHour = now.getUTCHours() - 4; // 美东时间近似
+  const session = (etHour >= 9 && etHour < 16) ? '盘中' : (etHour >= 4 && etHour < 9) ? '盘前' : (etHour >= 16 && etHour < 20) ? '盘后' : '休市';
   bar.innerHTML = TOP_BENCHMARKS.map(sym => {
     const p = getPrice(sym);
-    if (!p) return `<div class="flex items-center gap-1 text-xs"><span class="font-bold mono text-gray-500">${sym}</span><span class="text-gray-600">--</span></div>`;
+    if (!p) return `<div class="flex items-center gap-1 text-xs cursor-pointer hover:bg-gray-800 rounded px-1.5 py-0.5 transition" onclick="selectBenchmark('${sym}')"><span class="font-bold mono text-gray-500">${sym}</span><span class="text-gray-600">--</span></div>`;
     const clr = p.change >= 0 ? 'text-green-400' : 'text-red-400';
     const sgn = p.change >= 0 ? '+' : '';
-    return `<div class="flex items-center gap-1 text-xs">
-      <span class="font-bold mono">${sym}</span>
-      <span class="mono">${p.price.toFixed(2)}</span>
-      <span class="mono ${clr}">${sgn}${p.change.toFixed(2)} (${sgn}${p.pct}%)</span>
+    const active = currentSymbol === sym ? 'bg-gray-800 ring-1 ring-blue-600' : '';
+    return `<div class="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-800 rounded px-1.5 py-0.5 transition ${active}" onclick="selectBenchmark('${sym}')">
+      <span class="font-bold mono ${currentSymbol === sym ? 'text-blue-300' : ''}">${sym}</span>
+      <span class="mono text-gray-300">${p.price.toFixed(2)}</span>
+      <span class="mono ${clr}">${sgn}${p.change.toFixed(2)} <span class="text-xs">(${sgn}${p.pct}%)</span></span>
+      <span class="text-gray-600 text-xs">${session}</span>
     </div>`;
   }).join('<span class="text-gray-700">|</span>');
 
   document.getElementById('topTime').textContent = new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+}
+
+function selectBenchmark(sym) {
+  currentSymbol = sym;
+  currentMarket = 'us';
+  loadChart(sym, 'us');
+  updateQuote();
 }
 
 // ═══════════ 报价栏 ═══════════
