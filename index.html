@@ -397,6 +397,8 @@ function updateFundFlow() {
 
 // ═══════════ K线图 ═══════════
 function getTvSymbol(market, symbol) {
+  if (symbol === 'SPY') return 'AMEX:SPY';
+  if (symbol === 'DIA') return 'AMEX:DIA';
   if (market === 'us') return `${TV_EXCHANGE[symbol] || 'NYSE'}:${symbol}`;
   if (market === 'cn') {
     if (symbol.startsWith('159')) return `SZSE:${symbol}`;
