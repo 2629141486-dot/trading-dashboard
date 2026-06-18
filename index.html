@@ -318,15 +318,23 @@ const chartLabels = ['chart1Label','chart2Label','chart3Label','chart4Label'];
 const chartDivs = ['tv1','tv2','tv3','tv4'];
 let currentChartIdx = 3;
 
+const TV_EXCHANGE = {
+  NVDA: 'NASDAQ', GEV: 'NYSE', MP: 'NYSE', ETN: 'NYSE',
+  AVAV: 'NASDAQ', BE: 'NYSE', EOSE: 'NASDAQ', LITE: 'NASDAQ',
+};
+
+function getTvSymbol(market, symbol) {
+  if (market === 'us') return `${TV_EXCHANGE[symbol] || 'NYSE'}:${symbol}`;
+  if (market === 'cn') return `SZSE:${symbol}`;
+  return `HKEX:${symbol.padStart(4, '0')}`;
+}
+
 function switchChart(market, symbol) {
   currentChartIdx = (currentChartIdx + 1) % 4;
   const labelEl = document.getElementById(chartLabels[currentChartIdx]);
   const divEl = document.getElementById(chartDivs[currentChartIdx]);
 
-  let tvSymbol;
-  if (market === 'us') tvSymbol = `NYSE:${symbol}`;
-  else if (market === 'cn') tvSymbol = `SZSE:${symbol}`;
-  else tvSymbol = `HKEX:${symbol.padStart(4,'0')}`;
+  const tvSymbol = getTvSymbol(market, symbol);
 
   labelEl.textContent = symbol;
   divEl.innerHTML = '';
@@ -367,10 +375,7 @@ function init() {
     const divEl = document.getElementById(chartDivs[dc.idx]);
     labelEl.textContent = dc.symbol;
 
-    let tvSymbol;
-    if (dc.market === 'us') tvSymbol = `NYSE:${dc.symbol}`;
-    else if (dc.market === 'cn') tvSymbol = `SZSE:${dc.symbol}`;
-    else tvSymbol = `HKEX:${dc.symbol}`;
+    let tvSymbol = getTvSymbol(dc.market, dc.symbol);
 
     const iframe = document.createElement('iframe');
     iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_${dc.idx}&symbol=${tvSymbol}&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&symboledit=0&studies=MA:25%7CMA:99&theme=dark&style=1&timezone=Asia/Shanghai&withdateranges=0&hideideas=0&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=zh_CN&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=${tvSymbol}`;
