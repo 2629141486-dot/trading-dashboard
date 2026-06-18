@@ -23,7 +23,7 @@ jobs:
           from datetime import datetime, timezone, timedelta
 
           stocks = {
-              'us': ['NVDA','GEV','MP','ETN','AVAV','BE','EOSE','LITE'],
+              'us': ['NVDA','GEV','MP','ETN','AVAV','BE','EOSE','LITE','SPCX','QQQ','SPY','DIA'],
               'cn': [('300308','SZ'), ('002028','SZ'), ('002371','SZ'), ('300750','SZ')],
               'hk': [('0981','HK'), ('3899','HK')],
               'macro': ['^VIX','^TNX','DX-Y.NYB','BTC-USD','CL=F','000001.SS','^HSI']
