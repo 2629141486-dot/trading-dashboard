@@ -260,6 +260,7 @@ async function loadPrices() {
     const resp = await fetch('prices.json?t='+Date.now());
     if (!resp.ok) return;
     cachedPrices = (await resp.json()).stocks || {};
+    document.getElementById('topTime').textContent = (await (await fetch('prices.json?t='+Date.now())).json()).timestamp + ' 更新';
     updateAllUI();
   } catch(e) {}
 }
@@ -442,7 +443,7 @@ function toggleIndicator(ind, btn) {
 function init() {
   switchAccount('xf_us');
   loadPrices();
-  setInterval(loadPrices, 60000);
+  setInterval(loadPrices, 30000);
 }
 
 window.addEventListener('DOMContentLoaded', init);
